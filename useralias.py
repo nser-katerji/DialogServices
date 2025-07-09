@@ -92,8 +92,8 @@ def update_user_names(users_api, users):
 def main():
     args = parse_args()
     # Read secrets from environment variables (set as GitHub Actions secrets)
-    client_id = get_env_or_fail('GENESYS_CLIENT_ID')
-    client_secret = get_env_or_fail('GENESYS_CLIENT_SECRET')
+    client_id = get_env_or_fail('CLIENTIDDEV')
+    client_secret = get_env_or_fail('CLIENTSECRETDEV')
     # Division and region from args or env
     division_id = args.division_id or os.environ.get('GENESYS_DIVISION_ID')
     region = args.region or os.environ.get('GENESYS_REGION')
