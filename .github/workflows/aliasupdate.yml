@@ -1,0 +1,35 @@
+name: Update Genesys Agent Profile Names
+
+on:
+  workflow_dispatch:
+    inputs:
+      division_id:
+        description: 'Genesys Cloud Division ID'
+        required: true
+      region:
+        description: 'Genesys Cloud region (e.g. mypurecloud.de)'
+        required: true
+
+jobs:
+  update-profile-names:
+    runs-on: ubuntu-latest
+    env:
+      GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
+      GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PureCloudPlatformClientV2
+
+      - name: Run update script
+        run: |
+          python useralias.py --division-id "${{ github.event.inputs.division_id }}" --region "${{ github.event.inputs.region }}"
