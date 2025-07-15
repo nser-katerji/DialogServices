@@ -14,8 +14,8 @@ jobs:
   update-profile-names:
     runs-on: ubuntu-latest
     env:
-      GENESYS_CLIENT_ID: ${{ secrets.CLIENTIDDEV }}
-      GENESYS_CLIENT_SECRET: ${{ secrets.CLIENTSECRETDEV }}
+      GENESYS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      GENESYS_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
