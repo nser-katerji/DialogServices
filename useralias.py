@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_env_or_fail(var_name):
-    value = os.environ[var_name]
+    value = os.environ.get(var_name)
     if not value:
         logger.error(f"Environment variable {var_name} is required but not set.")
         raise RuntimeError(f"Missing required environment variable: {var_name}")
