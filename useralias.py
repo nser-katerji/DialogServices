@@ -71,9 +71,12 @@ def update_user_names(users_api, users):
 
         first_name = user.name.strip().split()[0]
 
-        if user.name == first_name:
-            logger.debug(f"Skipping user {user.id}: Name already matches first name")
+        # Check if preferred_name exists and matches first name
+        if user.preferred_name and user.preferred_name.strip() == first_name:
+            logger.debug(f"Skipping user {user.id}: Preferred name already matches first name '{first_name}'")
             continue
+
+        logger.info(f"User {user.id}: Current preferred name: '{user.preferred_name}', will set to first name: '{first_name}'")
 
         try:
             update = PureCloudPlatformClientV2.User()
