@@ -1,18 +1,41 @@
 import os
 import re
+import time
+import logging
 import datetime
+from typing import Set, List, Tuple
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.web.slack_response import SlackResponse
 import PureCloudPlatformClientV2
+from email_validator import validate_email, EmailNotValidError
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # --- Configuration (will be loaded from environment variables in GitHub Actions) ---
-SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
-SLACK_CHANNEL_ID = os.environ.get("SLACK_CHANNEL_ID") # e.g., 'C1234567890'
+def get_required_env_var(var_name: str) -> str:
+    value = os.environ.get(var_name)
+    if not value:
+        raise ValueError(f"Required environment variable {var_name} is not set")
+    return value
 
-GENESYS_CLIENT_ID = os.environ.get("CLIENT_ID")
-GENESYS_CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
-GENESYS_REGION = os.environ.get("GENESYS_REGION") # e.g., us_east_1, eu_west_1 etc.
-GENESYS_DATA_TABLE_ID = os.environ.get("GENESYS_DATA_TABLE_ID")
+SLACK_BOT_TOKEN = get_required_env_var("SLACK_BOT_TOKEN")
+SLACK_CHANNEL_ID = get_required_env_var("SLACK_CHANNEL_ID")
+GENESYS_CLIENT_ID = get_required_env_var("CLIENT_ID")
+GENESYS_CLIENT_SECRET = get_required_env_var("CLIENT_SECRET")
+GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu-central-1")
+GENESYS_DATA_TABLE_ID = get_required_env_var("GENESYS_DATA_TABLE_ID")
+
+# Constants
+MAX_RETRIES = 3
+RATE_LIMIT_DELAY = 1  # seconds
+PAGE_SIZE = 100
 
 LAST_RUN_TIMESTAMP_FILE = "last_run_timestamp.txt" # For local testing, in GitHub Actions, you might use artifacts or a different persistence method.
 
@@ -26,101 +49,207 @@ def save_last_run_timestamp(timestamp):
     with open(LAST_RUN_TIMESTAMP_FILE, 'w') as f:
         f.write(str(timestamp))
 
-def get_slack_emails(client, channel_id, oldest_timestamp):
+def validate_and_normalize_email(email: str) -> str:
+    """Validate email and return normalized form."""
+    try:
+        valid = validate_email(email)
+        return valid.email.lower()
+    except EmailNotValidError:
+        return ""
+
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(multiplier=1, min=4, max=10)
+)
+def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: float) -> Tuple[List[dict], float]:
+    """Fetch messages from Slack with pagination support."""
+    all_messages = []
+    newest_timestamp = oldest_timestamp
+    cursor = None
+
+    while True:
+        try:
+            response = client.conversations_history(
+                channel=channel_id,
+                oldest=oldest_timestamp,
+                limit=PAGE_SIZE,
+                cursor=cursor
+            )
+            
+            messages = response["messages"]
+            all_messages.extend(messages)
+            
+            # Update newest timestamp
+            for msg in messages:
+                if float(msg["ts"]) > newest_timestamp:
+                    newest_timestamp = float(msg["ts"])
+
+            # Check if there are more messages
+            if not response["has_more"]:
+                break
+                
+            cursor = response["response_metadata"]["next_cursor"]
+            time.sleep(RATE_LIMIT_DELAY)  # Respect rate limits
+            
+        except SlackApiError as e:
+            if e.response["error"] == "ratelimited":
+                delay = int(e.response.headers.get("Retry-After", RATE_LIMIT_DELAY))
+                time.sleep(delay)
+                continue
+            raise
+
+    return all_messages, newest_timestamp
+
+def get_slack_emails(client: WebClient, channel_id: str, oldest_timestamp: float) -> Tuple[List[str], float]:
+    """Extract validated emails from Slack messages."""
     emails = set()
     try:
-        # Fetch messages since the last run
-        response = client.conversations_history(
-            channel=channel_id,
-            oldest=oldest_timestamp,
-            limit=100 # Adjust as needed
-        )
-        messages = response["messages"]
-        newest_timestamp = oldest_timestamp
-
+        messages, newest_timestamp = get_slack_messages(client, channel_id, oldest_timestamp)
+        
         for msg in messages:
             if "text" in msg:
                 # Regex to find email addresses
                 found_emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', msg["text"])
                 for email in found_emails:
-                    emails.add(email.lower()) # Add in lowercase to avoid duplicates
+                    valid_email = validate_and_normalize_email(email)
+                    if valid_email:
+                        emails.add(valid_email)
 
-            # Keep track of the newest message timestamp for the next run
-            if float(msg["ts"]) > newest_timestamp:
-                newest_timestamp = float(msg["ts"])
-
+        logger.info(f"Found {len(emails)} valid unique emails in Slack messages")
         return list(emails), newest_timestamp
 
-    except SlackApiError as e:
-        print(f"Error fetching Slack messages: {e}")
-        return [], oldest_timestamp
+    except Exception as e:
+        logger.error(f"Error fetching Slack messages: {str(e)}")
+        raise
 
-def get_genesys_data_table_rows(api_instance, data_table_id):
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(multiplier=1, min=4, max=10)
+)
+def get_genesys_data_table_rows(api_instance: PureCloudPlatformClientV2.ArchitectApi, data_table_id: str) -> Set[str]:
+    """Fetch all existing blacklisted emails from Genesys data table with pagination."""
     existing_emails = set()
+    page_number = 1
+    
     try:
-        # Fetch existing rows from the data table
-        # Note: Genesys API might require pagination for large tables
-        rows = api_instance.get_architect_datatable_rows(data_table_id, page_size=1000)
-        for row in rows.entities:
-            # Assuming your data table has a column named 'EmailAddress'
-            if 'EmailAddress' in row.properties:
-                existing_emails.add(row.properties['EmailAddress'].lower())
+        while True:
+            rows = api_instance.get_architect_datatable_rows(
+                data_table_id,
+                page_size=PAGE_SIZE,
+                page_number=page_number
+            )
+            
+            if not rows.entities:
+                break
+                
+            for row in rows.entities:
+                if 'EmailAddress' in row.properties:
+                    email = validate_and_normalize_email(row.properties['EmailAddress'])
+                    if email:
+                        existing_emails.add(email)
+            
+            if page_number >= rows.page_count:
+                break
+                
+            page_number += 1
+            time.sleep(RATE_LIMIT_DELAY)  # Respect rate limits
+            
+        logger.info(f"Found {len(existing_emails)} existing blacklisted emails in Genesys")
         return existing_emails
+        
     except PureCloudPlatformClientV2.rest.ApiException as e:
-        print(f"Error fetching Genesys Data Table rows: {e}")
-        return set()
+        logger.error(f"Error fetching Genesys Data Table rows: {str(e)}")
+        raise
 
-def add_genesys_data_table_row(api_instance, data_table_id, email_address):
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(multiplier=1, min=4, max=10)
+)
+def add_genesys_data_table_row(
+    api_instance: PureCloudPlatformClientV2.ArchitectApi,
+    data_table_id: str,
+    email_address: str
+) -> bool:
+    """Add a new email to the Genesys blacklist data table."""
     try:
+        # Validate email before adding
+        email_address = validate_and_normalize_email(email_address)
+        if not email_address:
+            logger.warning(f"Invalid email address, skipping")
+            return False
+
         # Create a new row object
         new_row = PureCloudPlatformClientV2.ArchitectDatatableRow()
-        new_row.properties = {"EmailAddress": email_address} # Match your column name
+        new_row.properties = {
+            "EmailAddress": email_address,
+            "DateAdded": datetime.datetime.utcnow().isoformat()
+        }
 
         api_instance.add_architect_datatable_row(data_table_id, new_row)
-        print(f"Added {email_address} to Genesys Data Table.")
+        logger.info(f"Added {email_address} to Genesys Data Table")
         return True
+        
     except PureCloudPlatformClientV2.rest.ApiException as e:
-        print(f"Error adding row to Genesys Data Table: {e}")
-        return False
+        logger.error(f"Error adding {email_address} to Genesys Data Table: {str(e)}")
+        raise
 
 def main():
-    # 1. Slack Client
-    slack_client = WebClient(token=SLACK_BOT_TOKEN)
-
-    # 2. Genesys Cloud CX API Configuration
-    PureCloudPlatformClientV2.configuration.client_id = GENESYS_CLIENT_ID
-    PureCloudPlatformClientV2.configuration.client_secret = GENESYS_CLIENT_SECRET
-    PureCloudPlatformClientV2.configuration.set_base_path_by_region(GENESYS_REGION)
-    api_client = PureCloudPlatformClientV2.api_client.ApiClient()
-    architect_api = PureCloudPlatformClientV2.ArchitectApi(api_client=api_client)
-
-    # 3. Get last run timestamp
-    last_run_ts = get_last_run_timestamp()
-    print(f"Last run timestamp: {last_run_ts}")
-
-    # 4. Fetch emails from Slack
-    new_emails, current_newest_ts = get_slack_emails(slack_client, SLACK_CHANNEL_ID, last_run_ts)
-    print(f"Found {len(new_emails)} new emails from Slack.")
-
-    if not new_emails:
-        print("No new emails to process. Exiting.")
-        return
-
-    # 5. Get existing emails from Genesys Data Table
-    existing_genesys_emails = get_genesys_data_table_rows(architect_api, GENESYS_DATA_TABLE_ID)
-    print(f"Found {len(existing_genesys_emails)} existing emails in Genesys Data Table.")
-
-    # 6. Add new emails to Genesys Data Table
-    added_count = 0
-    for email in new_emails:
-        if email not in existing_genesys_emails:
-            if add_genesys_data_table_row(architect_api, GENESYS_DATA_TABLE_ID, email):
-                added_count += 1
-    print(f"Successfully added {added_count} new emails to Genesys Data Table.")
-
-    # 7. Save the new last run timestamp
-    save_last_run_timestamp(current_newest_ts)
-    print(f"Updated last run timestamp to: {current_newest_ts}")
+    """Main execution function."""
+    try:
+        logger.info("Starting blacklist update process")
+        
+        # 1. Initialize Slack Client
+        slack_client = WebClient(token=SLACK_BOT_TOKEN)
+        
+        # 2. Initialize Genesys Cloud CX API
+        PureCloudPlatformClientV2.configuration.client_id = GENESYS_CLIENT_ID
+        PureCloudPlatformClientV2.configuration.client_secret = GENESYS_CLIENT_SECRET
+        PureCloudPlatformClientV2.configuration.set_base_path_by_region(GENESYS_REGION)
+        api_client = PureCloudPlatformClientV2.api_client.ApiClient()
+        architect_api = PureCloudPlatformClientV2.ArchitectApi(api_client=api_client)
+        
+        # 3. Get last run timestamp
+        last_run_ts = get_last_run_timestamp()
+        logger.info(f"Last run timestamp: {last_run_ts}")
+        
+        # 4. Fetch emails from Slack
+        new_emails, current_newest_ts = get_slack_emails(slack_client, SLACK_CHANNEL_ID, last_run_ts)
+        
+        if not new_emails:
+            logger.info("No new emails to process. Exiting.")
+            return
+            
+        # 5. Get existing emails from Genesys Data Table
+        existing_genesys_emails = get_genesys_data_table_rows(architect_api, GENESYS_DATA_TABLE_ID)
+        
+        # 6. Add new emails to Genesys Data Table
+        added_count = 0
+        skipped_count = 0
+        
+        for email in new_emails:
+            if email in existing_genesys_emails:
+                logger.debug(f"Skipping already blacklisted email: {email}")
+                skipped_count += 1
+                continue
+                
+            try:
+                if add_genesys_data_table_row(architect_api, GENESYS_DATA_TABLE_ID, email):
+                    added_count += 1
+                    time.sleep(RATE_LIMIT_DELAY)  # Respect rate limits
+            except Exception as e:
+                logger.error(f"Failed to add email {email}: {str(e)}")
+                
+        logger.info(f"Successfully added {added_count} new emails to blacklist")
+        logger.info(f"Skipped {skipped_count} already blacklisted emails")
+        
+        # 7. Save the new last run timestamp
+        if current_newest_ts > last_run_ts:
+            save_last_run_timestamp(current_newest_ts)
+            logger.info(f"Updated last run timestamp to: {current_newest_ts}")
+            
+    except Exception as e:
+        logger.error(f"Fatal error in main execution: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
