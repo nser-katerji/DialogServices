@@ -57,15 +57,46 @@ def validate_and_normalize_email(email: str) -> str:
     except EmailNotValidError:
         return ""
 
+def check_slack_scopes(client: WebClient):
+    """Check if the bot has the required scopes."""
+    try:
+        # Test auth to check scopes
+        auth_test = client.auth_test()
+        if not auth_test['ok']:
+            raise ValueError("Failed to authenticate with Slack")
+            
+        # Get bot scopes
+        bot_info = client.bots_info(bot=auth_test['bot_id'])
+        if not bot_info['ok']:
+            raise ValueError("Failed to get bot information")
+            
+        required_scopes = {'channels:history', 'groups:history', 'mpim:history', 'im:history'}
+        current_scopes = set(bot_info['bot']['scopes'])
+        
+        missing_scopes = required_scopes - current_scopes
+        if missing_scopes:
+            raise ValueError(
+                f"Bot is missing required scopes: {', '.join(missing_scopes)}. "
+                f"Please add these scopes in your Slack App settings and reinstall the app."
+            )
+            
+    except SlackApiError as e:
+        logger.error(f"Error checking Slack scopes: {str(e)}")
+        raise
+
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
-    wait=wait_exponential(multiplier=1, min=4, max=10)
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=lambda x: not isinstance(x, ValueError)  # Don't retry permission errors
 )
 def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: float) -> Tuple[List[dict], float]:
     """Fetch messages from Slack with pagination support."""
     all_messages = []
     newest_timestamp = oldest_timestamp
     cursor = None
+
+    # Check scopes before attempting to fetch messages
+    check_slack_scopes(client)
 
     while True:
         try:
@@ -76,6 +107,16 @@ def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: flo
                 cursor=cursor
             )
             
+            if not response['ok']:
+                error = response.get('error', 'unknown error')
+                if error == 'missing_scope':
+                    needed = response.get('needed', 'unknown')
+                    provided = response.get('provided', 'unknown')
+                    raise ValueError(
+                        f"Missing required Slack scopes. Needed: {needed}, Provided: {provided}"
+                    )
+                raise SlackApiError(f"Slack API error: {error}", response)
+            
             messages = response["messages"]
             all_messages.extend(messages)
             
@@ -85,7 +126,7 @@ def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: flo
                     newest_timestamp = float(msg["ts"])
 
             # Check if there are more messages
-            if not response["has_more"]:
+            if not response.get("has_more", False):
                 break
                 
             cursor = response["response_metadata"]["next_cursor"]
@@ -198,8 +239,16 @@ def main():
     try:
         logger.info("Starting blacklist update process")
         
-        # 1. Initialize Slack Client
+        # 1. Initialize and verify Slack Client
+        logger.info("Initializing Slack client...")
         slack_client = WebClient(token=SLACK_BOT_TOKEN)
+        
+        try:
+            check_slack_scopes(slack_client)
+            logger.info("Slack authentication and scopes verified successfully")
+        except ValueError as e:
+            logger.error(f"Slack configuration error: {str(e)}")
+            raise
         
         # 2. Initialize Genesys Cloud CX API
         # Set region
