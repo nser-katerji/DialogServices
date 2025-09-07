@@ -19,18 +19,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configuration (will be loaded from environment variables in GitHub Actions) ---
-def get_required_env_var(var_name):
+def get_required_env_var(var_name: str) -> str:
     value = os.environ.get(var_name)
     if not value:
-        logger.error(f"Environment variable {var_name} is required but not set.")
-        raise RuntimeError(f"Missing required environment variable: {var_name}")
+        raise ValueError(f"Required environment variable {var_name} is not set")
     return value
 
 SLACK_BOT_TOKEN = get_required_env_var("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = get_required_env_var("SLACK_CHANNEL_ID")
 GENESYS_CLIENT_ID = get_required_env_var("CLIENT_ID")
 GENESYS_CLIENT_SECRET = get_required_env_var("CLIENT_SECRET")
-GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu-central-1")
+GENESYS_REGION = os.environ.get("GENESYS_REGION", "us_east_1")
 GENESYS_DATA_TABLE_ID = get_required_env_var("GENESYS_DATA_TABLE_ID")
 
 # Constants
@@ -203,10 +202,34 @@ def main():
         slack_client = WebClient(token=SLACK_BOT_TOKEN)
         
         # 2. Initialize Genesys Cloud CX API
-        PureCloudPlatformClientV2.configuration.client_id = GENESYS_CLIENT_ID
-        PureCloudPlatformClientV2.configuration.client_secret = GENESYS_CLIENT_SECRET
-        PureCloudPlatformClientV2.configuration.set_base_path_by_region(GENESYS_REGION)
+        # Create API configuration
         api_client = PureCloudPlatformClientV2.api_client.ApiClient()
+        
+        # Set region
+        region_host = {
+            'us_east_1': 'https://api.mypurecloud.com',
+            'us_west_2': 'https://api.usw2.pure.cloud',
+            'eu_west_1': 'https://api.mypurecloud.ie',
+            'eu_west_2': 'https://api.euw2.pure.cloud',
+            'ap_southeast_2': 'https://api.mypurecloud.com.au',
+            'ap_northeast_1': 'https://api.mypurecloud.jp',
+            'eu_central_1': 'https://api.mypurecloud.de',
+            'ap_northeast_2': 'https://api.apne2.pure.cloud',
+            'ca_central_1': 'https://api.cac1.pure.cloud',
+            'ap_south_1': 'https://api.aps1.pure.cloud',
+            'sa_east_1': 'https://api.sae1.pure.cloud'
+        }
+        
+        if GENESYS_REGION not in region_host:
+            raise ValueError(f"Invalid region: {GENESYS_REGION}. Must be one of {', '.join(region_host.keys())}")
+            
+        api_client.configuration.host = region_host[GENESYS_REGION]
+        
+        # Set credentials
+        api_client.configuration.client_id = GENESYS_CLIENT_ID
+        api_client.configuration.client_secret = GENESYS_CLIENT_SECRET
+        
+        # Create API instance
         architect_api = PureCloudPlatformClientV2.ArchitectApi(api_client=api_client)
         
         # 3. Get last run timestamp
