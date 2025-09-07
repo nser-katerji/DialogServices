@@ -27,8 +27,8 @@ jobs:
       env:
         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-        GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
-        GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+        GENESYS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        GENESYS_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         GENESYS_REGION: ${{ secrets.GENESYS_REGION }}
         GENESYS_DATA_TABLE_ID: ${{ secrets.GENESYS_DATA_TABLE_ID }}
       run: python update_blacklist.py
