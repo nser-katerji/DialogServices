@@ -29,7 +29,7 @@ SLACK_BOT_TOKEN = get_required_env_var("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = get_required_env_var("SLACK_CHANNEL_ID")
 GENESYS_CLIENT_ID = get_required_env_var("CLIENT_ID")
 GENESYS_CLIENT_SECRET = get_required_env_var("CLIENT_SECRET")
-GENESYS_REGION = os.environ.get("GENESYS_REGION", "us_east_1")
+GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu-central-1")
 GENESYS_DATA_TABLE_ID = get_required_env_var("GENESYS_DATA_TABLE_ID")
 
 # Constants
