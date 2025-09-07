@@ -19,10 +19,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configuration (will be loaded from environment variables in GitHub Actions) ---
-def get_required_env_var(var_name: str) -> str:
+def get_required_env_var(var_name):
     value = os.environ.get(var_name)
     if not value:
-        raise ValueError(f"Required environment variable {var_name} is not set")
+        logger.error(f"Environment variable {var_name} is required but not set.")
+        raise RuntimeError(f"Missing required environment variable: {var_name}")
     return value
 
 SLACK_BOT_TOKEN = get_required_env_var("SLACK_BOT_TOKEN")
