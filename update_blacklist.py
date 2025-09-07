@@ -11,7 +11,7 @@ SLACK_CHANNEL_ID = os.environ.get("SLACK_CHANNEL_ID") # e.g., 'C1234567890'
 
 GENESYS_CLIENT_ID = os.environ.get("CLIENT_ID")
 GENESYS_CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
-GENESYS_REGION = os.environ.get("GENESYS_REGION", "us_east_1") # e.g., us_east_1, eu_west_1 etc.
+GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu-central-1") # e.g., us_east_1, eu_west_1 etc.
 GENESYS_DATA_TABLE_ID = os.environ.get("GENESYS_DATA_TABLE_ID")
 
 LAST_RUN_TIMESTAMP_FILE = "last_run_timestamp.txt" # For local testing, in GitHub Actions, you might use artifacts or a different persistence method.
