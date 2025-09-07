@@ -202,9 +202,6 @@ def main():
         slack_client = WebClient(token=SLACK_BOT_TOKEN)
         
         # 2. Initialize Genesys Cloud CX API
-        # Create API configuration
-        api_client = PureCloudPlatformClientV2.api_client.ApiClient()
-        
         # Set region
         region_host = {
             'us_east_1': 'https://api.mypurecloud.com',
@@ -223,14 +220,17 @@ def main():
         if GENESYS_REGION not in region_host:
             raise ValueError(f"Invalid region: {GENESYS_REGION}. Must be one of {', '.join(region_host.keys())}")
             
-        api_client.configuration.host = region_host[GENESYS_REGION]
+        # Create configuration
+        configuration = PureCloudPlatformClientV2.Configuration()
+        configuration.host = region_host[GENESYS_REGION]
+        configuration.client_id = GENESYS_CLIENT_ID
+        configuration.client_secret = GENESYS_CLIENT_SECRET
         
-        # Set credentials
-        api_client.configuration.client_id = GENESYS_CLIENT_ID
-        api_client.configuration.client_secret = GENESYS_CLIENT_SECRET
+        # Create API client with configuration
+        api_client = PureCloudPlatformClientV2.ApiClient(configuration)
         
         # Create API instance
-        architect_api = PureCloudPlatformClientV2.ArchitectApi(api_client=api_client)
+        architect_api = PureCloudPlatformClientV2.ArchitectApi(api_client)
         
         # 3. Get last run timestamp
         last_run_ts = get_last_run_timestamp()
