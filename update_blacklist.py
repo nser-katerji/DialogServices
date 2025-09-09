@@ -60,18 +60,23 @@ def validate_and_normalize_email(email: str) -> str:
 def check_slack_scopes(client: WebClient):
     """Check if the bot has the required scopes."""
     try:
-        # Test auth to check scopes
+        # Test auth to verify token and check basic connectivity
         auth_test = client.auth_test()
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
             
-        # Get bot scopes
-        bot_info = client.bots_info(bot=auth_test['bot_id'])
-        if not bot_info['ok']:
-            raise ValueError("Failed to get bot information")
+        # Try to access the channel to verify permissions
+        try:
+            client.conversations_info(channel=SLACK_CHANNEL_ID)
+        except SlackApiError as e:
+            if 'missing_scope' in str(e):
+                raise ValueError(
+                    "Bot is missing required scopes. Please ensure the bot has "
+                    "'channels:history' and 'channels:read' scopes."
+                )
+            raise ValueError(f"Failed to access channel: {str(e)}")
             
-        required_scopes = {'channels:history', 'groups:history', 'mpim:history', 'im:history'}
-        current_scopes = set(bot_info['bot']['scopes'])
+        logger.info("Successfully verified Slack authentication and channel access")
         
         missing_scopes = required_scopes - current_scopes
         if missing_scopes:
