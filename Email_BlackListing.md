@@ -175,12 +175,8 @@ Required environment variables and their purposes:
 ## Required Slack Bot Permissions
 
 - channels:history
-- groups:history
-- mpim:history
-- im:history
 - channels:read (recommended)
-- groups:read (recommended)
-- team:read (recommended)
+- users:read (recommended)
 
 ## Genesys Cloud Requirements
 
