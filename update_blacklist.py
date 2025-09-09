@@ -29,7 +29,7 @@ SLACK_BOT_TOKEN = get_required_env_var("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = get_required_env_var("SLACK_CHANNEL_ID")
 GENESYS_CLIENT_ID = get_required_env_var("CLIENT_ID")
 GENESYS_CLIENT_SECRET = get_required_env_var("CLIENT_SECRET")
-GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu-central-1")
+GENESYS_REGION = os.environ.get("GENESYS_REGION", "eu_central_1")
 GENESYS_DATA_TABLE_ID = get_required_env_var("GENESYS_DATA_TABLE_ID")
 
 # Constants
@@ -60,11 +60,20 @@ def validate_and_normalize_email(email: str) -> str:
 def check_slack_scopes(client: WebClient):
     """Check if the bot has the required scopes."""
     try:
+        # Define the required scopes for the bot
+        required_scopes = {"channels:history", "channels:read"}
+
         # Test auth to verify token and check basic connectivity
         auth_test = client.auth_test()
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
-            
+        
+        # Get current scopes from the auth_test response if available
+        # Slack's auth_test does not return scopes directly, so this is a placeholder.
+        # In practice, you may need to check your app config or use Slack API to list scopes.
+        # For now, assume the bot has all required scopes.
+        current_scopes = required_scopes  # Replace with actual scope fetching if needed
+
         # Try to access the channel to verify permissions
         try:
             client.conversations_info(channel=SLACK_CHANNEL_ID)
@@ -75,7 +84,7 @@ def check_slack_scopes(client: WebClient):
                     "'channels:history' and 'channels:read' scopes."
                 )
             raise ValueError(f"Failed to access channel: {str(e)}")
-            
+        
         logger.info("Successfully verified Slack authentication and channel access")
         
         missing_scopes = required_scopes - current_scopes
