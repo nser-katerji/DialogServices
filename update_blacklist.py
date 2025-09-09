@@ -60,39 +60,46 @@ def validate_and_normalize_email(email: str) -> str:
 def check_slack_scopes(client: WebClient):
     """Check if the bot has the required scopes."""
     try:
-        # Define the required scopes for the bot
-        required_scopes = {"channels:history", "channels:read"}
-
         # Test auth to verify token and check basic connectivity
         auth_test = client.auth_test()
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
         
-        # Get current scopes from the auth_test response if available
-        # Slack's auth_test does not return scopes directly, so this is a placeholder.
-        # In practice, you may need to check your app config or use Slack API to list scopes.
-        # For now, assume the bot has all required scopes.
-        current_scopes = required_scopes  # Replace with actual scope fetching if needed
-
         # Try to access the channel to verify permissions
         try:
-            client.conversations_info(channel=SLACK_CHANNEL_ID)
-        except SlackApiError as e:
-            if 'missing_scope' in str(e):
-                raise ValueError(
-                    "Bot is missing required scopes. Please ensure the bot has "
-                    "'channels:history' and 'channels:read' scopes."
-                )
-            raise ValueError(f"Failed to access channel: {str(e)}")
-        
-        logger.info("Successfully verified Slack authentication and channel access")
-        
-        missing_scopes = required_scopes - current_scopes
-        if missing_scopes:
-            raise ValueError(
-                f"Bot is missing required scopes: {', '.join(missing_scopes)}. "
-                f"Please add these scopes in your Slack App settings and reinstall the app."
+            # First verify we can get channel info
+            info_response = client.conversations_info(channel=SLACK_CHANNEL_ID)
+            if not info_response['ok']:
+                raise SlackApiError("Failed to get channel info", info_response)
+
+            # Then verify we can read channel history
+            history_response = client.conversations_history(
+                channel=SLACK_CHANNEL_ID,
+                limit=1  # Just test access
             )
+            if not history_response['ok']:
+                raise SlackApiError("Failed to get channel history", history_response)
+
+            logger.info("Successfully verified Slack authentication and channel access")
+
+        except SlackApiError as e:
+            error_data = getattr(e.response, 'data', {})
+            
+            if 'error' in error_data and error_data['error'] == 'missing_scope':
+                needed_scopes = error_data.get('needed', 'unknown')
+                provided_scopes = error_data.get('provided', 'unknown')
+                raise ValueError(
+                    f"Bot is missing required scopes. Needed: {needed_scopes}, "
+                    f"Currently provided: {provided_scopes}. Please add these scopes "
+                    "in your Slack App settings and reinstall the app."
+                )
+            elif 'error' in error_data and error_data['error'] == 'channel_not_found':
+                raise ValueError(
+                    f"Channel ID {SLACK_CHANNEL_ID} not found. Please verify the "
+                    "channel ID and ensure the bot is invited to the channel."
+                )
+            else:
+                raise ValueError(f"Failed to access channel: {str(e)}")
             
     except SlackApiError as e:
         logger.error(f"Error checking Slack scopes: {str(e)}")
