@@ -34,7 +34,7 @@ jobs:
         python check_preferred_names.py --region ${{ github.event.inputs.region }} --output-file mismatched_names.txt
 
     - name: Upload results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: preferred-names-report
         path: mismatched_names.txt
