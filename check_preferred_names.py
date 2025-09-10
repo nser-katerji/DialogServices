@@ -149,8 +149,8 @@ def write_results_to_file(results, filename):
 def main():
     args = parse_args()
     # Read secrets from environment variables
-    client_id = get_env_or_fail('GENESYS_CLIENT_ID')
-    client_secret = get_env_or_fail('GENESYS_CLIENT_SECRET')
+    client_id = get_env_or_fail('CLIENT_ID')
+    client_secret = get_env_or_fail('CLIENT_SECRET')
     region = args.region or os.environ.get('GENESYS_REGION')
     
     if not region:
