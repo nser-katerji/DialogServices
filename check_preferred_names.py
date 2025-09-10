@@ -51,10 +51,17 @@ def get_all_divisions(api_client):
 def setup_genesys_client(region, client_id, client_secret):
     """Initialize and return the Genesys Cloud API client."""
     try:
-        PureCloudPlatformClientV2.configuration.host = f'https://api.{region}'
-        api_client = PureCloudPlatformClientV2.api_client.ApiClient().get_client_credentials_token(
-            client_id, client_secret)
+        # Set the environment first
+        PureCloudPlatformClientV2.configuration.host = f"https://api.{region}"
+        
+        # Create API client and authenticate
+        api_client = PureCloudPlatformClientV2.api_client.ApiClient().get_client_credentials_token(client_id, client_secret)
+        
+        # Return the Users API instance
         return PureCloudPlatformClientV2.UsersApi(api_client)
+    except ApiException as e:
+        logger.error(f"Failed to initialize Genesys Cloud client: {str(e.body)}")
+        raise
     except Exception as e:
         logger.error(f"Failed to initialize Genesys Cloud client: {e}")
         raise
@@ -148,7 +155,7 @@ def write_results_to_file(results, filename):
 
 def main():
     args = parse_args()
-    # Read secrets from environment variables
+    # Use hardcoded values for local testing
     client_id = get_env_or_fail('CLIENT_ID')
     client_secret = get_env_or_fail('CLIENT_SECRET')
     region = args.region or os.environ.get('GENESYS_REGION')
@@ -162,9 +169,8 @@ def main():
         all_results = []
 
         # Set up API client
-        api_client = PureCloudPlatformClientV2.api_client.ApiClient().get_client_credentials_token(
-            client_id, client_secret)
-        users_api = PureCloudPlatformClientV2.UsersApi(api_client)
+        users_api = setup_genesys_client(region, client_id, client_secret)
+        logger.info("Successfully authenticated with Genesys Cloud")
 
         # Get all divisions or process specific division
         if args.specific_division:
@@ -174,7 +180,7 @@ def main():
             })]
             logger.info(f"Processing specific division: {args.specific_division}")
         else:
-            divisions = get_all_divisions(api_client)
+            divisions = get_all_divisions(users_api.api_client)
             logger.info(f"Found {len(divisions)} divisions to process")
 
         # Process each division
