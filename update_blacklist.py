@@ -65,14 +65,9 @@ def check_slack_scopes(client: WebClient):
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
         
-        # Try to access the channel to verify permissions
+        # Try to access the channel history directly
         try:
-            # First verify we can get channel info
-            info_response = client.conversations_info(channel=SLACK_CHANNEL_ID)
-            if not info_response['ok']:
-                raise SlackApiError("Failed to get channel info", info_response)
-
-            # Then verify we can read channel history
+            # Verify we can read channel history
             history_response = client.conversations_history(
                 channel=SLACK_CHANNEL_ID,
                 limit=1  # Just test access
@@ -84,16 +79,14 @@ def check_slack_scopes(client: WebClient):
 
         except SlackApiError as e:
             error_data = getattr(e.response, 'data', {})
+            error_type = error_data.get('error', '')
             
-            if 'error' in error_data and error_data['error'] == 'missing_scope':
-                needed_scopes = error_data.get('needed', 'unknown')
-                provided_scopes = error_data.get('provided', 'unknown')
+            if error_type == 'missing_scope':
                 raise ValueError(
-                    f"Bot is missing required scopes. Needed: {needed_scopes}, "
-                    f"Currently provided: {provided_scopes}. Please add these scopes "
+                    "Bot needs 'channels:history' scope. Please add this scope "
                     "in your Slack App settings and reinstall the app."
                 )
-            elif 'error' in error_data and error_data['error'] == 'channel_not_found':
+            elif error_type == 'channel_not_found':
                 raise ValueError(
                     f"Channel ID {SLACK_CHANNEL_ID} not found. Please verify the "
                     "channel ID and ensure the bot is invited to the channel."
