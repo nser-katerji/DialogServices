@@ -15,26 +15,26 @@ jobs:
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install PureCloudPlatformClientV2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PureCloudPlatformClientV2
 
-    - name: Run check preferred names script
-      run: |
-        python check_preferred_names.py --region ${{ github.event.inputs.region }} --output-file mismatched_names.txt
+      - name: Run check preferred names script
+        run: |
+          python check_preferred_names.py --region ${{ github.event.inputs.region }} --output-file mismatched_names.txt
 
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: preferred-names-report
-        path: mismatched_names.txt
-        if-no-files-found: error
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: preferred-names-report
+          path: mismatched_names.txt
+          if-no-files-found: error
