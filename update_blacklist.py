@@ -60,57 +60,37 @@ def validate_and_normalize_email(email: str) -> str:
 def check_slack_scopes(client: WebClient):
     """Check if the bot has the required scopes."""
     try:
-        # Test auth to verify token and check basic connectivity
+        # Test auth to verify token and bot identity
         auth_test = client.auth_test()
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
-        
-        # Try to access the channel history directly
-        try:
-            # Verify we can read channel history
-            history_response = client.conversations_history(
-                channel=SLACK_CHANNEL_ID,
-                limit=1  # Just test access
-            )
-            if not history_response['ok']:
-                raise SlackApiError("Failed to get channel history", history_response)
-
-            logger.info("Successfully verified Slack authentication and channel access")
-
-        except SlackApiError as e:
-            error_data = getattr(e.response, 'data', {})
-            error_type = error_data.get('error', '')
             
-            if error_type == 'missing_scope':
-                raise ValueError(
-                    "Bot needs 'channels:history' scope. Please add this scope "
-                    "in your Slack App settings and reinstall the app."
-                )
-            elif error_type == 'channel_not_found':
-                raise ValueError(
-                    f"Channel ID {SLACK_CHANNEL_ID} not found. Please verify the "
-                    "channel ID and ensure the bot is invited to the channel."
-                )
-            else:
-                raise ValueError(f"Failed to access channel: {str(e)}")
+        # Get the bot's scopes
+        scopes = auth_test.get('bot_scopes', [])
+        required_scopes = {'channels:history'}
+        
+        missing_scopes = required_scopes - set(scopes)
+        if missing_scopes:
+            raise ValueError(
+                f"Bot needs the following scopes: {', '.join(missing_scopes)}. "
+                "Please add these scopes in your Slack App settings and reinstall the app."
+            )
+            
+        logger.info(f"Successfully verified Slack authentication as {auth_test['user']}")
             
     except SlackApiError as e:
-        logger.error(f"Error checking Slack scopes: {str(e)}")
-        raise
+        error_data = getattr(e.response, 'data', {})
+        raise ValueError(f"Error verifying Slack authentication: {error_data.get('error', str(e))}")
 
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=lambda x: not isinstance(x, ValueError)  # Don't retry permission errors
+    wait=wait_exponential(multiplier=1, min=4, max=10)
 )
 def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: float) -> Tuple[List[dict], float]:
     """Fetch messages from Slack with pagination support."""
     all_messages = []
     newest_timestamp = oldest_timestamp
     cursor = None
-
-    # Check scopes before attempting to fetch messages
-    check_slack_scopes(client)
 
     while True:
         try:
@@ -123,15 +103,9 @@ def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: flo
             
             if not response['ok']:
                 error = response.get('error', 'unknown error')
-                if error == 'missing_scope':
-                    needed = response.get('needed', 'unknown')
-                    provided = response.get('provided', 'unknown')
-                    raise ValueError(
-                        f"Missing required Slack scopes. Needed: {needed}, Provided: {provided}"
-                    )
                 raise SlackApiError(f"Slack API error: {error}", response)
             
-            messages = response["messages"]
+            messages = response.get("messages", [])
             all_messages.extend(messages)
             
             # Update newest timestamp
@@ -143,11 +117,14 @@ def get_slack_messages(client: WebClient, channel_id: str, oldest_timestamp: flo
             if not response.get("has_more", False):
                 break
                 
-            cursor = response["response_metadata"]["next_cursor"]
+            cursor = response["response_metadata"].get("next_cursor")
+            if not cursor:  # If no cursor, we're done
+                break
+                
             time.sleep(RATE_LIMIT_DELAY)  # Respect rate limits
             
         except SlackApiError as e:
-            if e.response["error"] == "ratelimited":
+            if e.response.get("error") == "ratelimited":
                 delay = int(e.response.headers.get("Retry-After", RATE_LIMIT_DELAY))
                 time.sleep(delay)
                 continue
