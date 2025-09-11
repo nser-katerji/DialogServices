@@ -83,4 +83,50 @@ Division: [division]
   - argparse
 
 ## Diagram
-The visual representation of this design can be found in `design/preferred-names-checker.drawio`
+### Draw.io Version
+The detailed visual representation of this design can be found in `design/preferred-names-checker.drawio`
+
+### Mermaid Diagram
+```mermaid
+flowchart TD
+    A[User/GitHub Action] --> B[check_preferred_names.py]
+    
+    subgraph Configuration
+        C1[Command Line Args] --> B
+        C2[Environment Variables] --> B
+    end
+    
+    B --> D[Initialize Genesys Cloud Client]
+    D --> E[Authentication]
+    E --> F[Get Divisions]
+    
+    subgraph Process["Process Each Division"]
+        F --> G[Get Users]
+        G --> H[Filter Users]
+        H --> I[Check Preferred Names]
+    end
+    
+    I --> J[Collect Results]
+    
+    J --> K[Generate Report]
+    
+    K --> L1[Console Output]
+    K --> L2[File Output]
+    K --> L3[GitHub Action Artifact]
+    
+    classDef config fill:#fff2cc,stroke:#d6b656
+    classDef process fill:#d5e8d4,stroke:#82b366
+    classDef auth fill:#ffe6cc,stroke:#d79b00
+    classDef output fill:#f5f5f5,stroke:#666666
+    
+    class C1,C2 config
+    class B,G,H,I process
+    class D,E,F auth
+    class K,L1,L2,L3 output
+```
+
+The Mermaid diagram above shows the flow of the application with:
+- Yellow boxes: Configuration components
+- Green boxes: Processing components
+- Orange boxes: Authentication and API operations
+- Gray boxes: Output components
