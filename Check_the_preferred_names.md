@@ -82,10 +82,6 @@ Division: [division]
   - logging
   - argparse
 
-## Diagram
-### Draw.io Version
-The detailed visual representation of this design can be found in `design/preferred-names-checker.drawio`
-
 ### Mermaid Diagram
 ```mermaid
 flowchart TD
