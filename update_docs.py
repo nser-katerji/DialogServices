@@ -37,7 +37,7 @@ def create_or_update_docs():
     
     # Get repository information from environment
     repo = os.environ.get('GITHUB_REPOSITORY', '')
-    token = os.environ.get('GITHUB_TOKEN', '')
+    token = os.environ.get('DOCS_BOT_TOKEN', '')
     
     if token and repo:
         g = Github(token)
