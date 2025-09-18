@@ -30,7 +30,7 @@ jobs:
 
     - name: Create/Update Documentation
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DOCS_BOT_TOKEN: ${{ secrets.DOCS_BOT_TOKEN }}
       run: |
         python .github/scripts/update_docs.py
       
