@@ -1,0 +1,66 @@
+name: Export Genesys canned responses
+run-name: Export canned responses (${{ inputs.organization }}, ${{ inputs.scope }}, ${{ inputs.country_code }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      organization:
+        description: GitHub Environment configured for the Genesys organization
+        required: true
+        type: environment
+      scope:
+        description: Export all libraries or filter by country
+        required: true
+        type: choice
+        default: country
+        options:
+          - country
+          - all
+      country_code:
+        description: Two-letter country code (required for country exports)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.organization }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Export canned responses
+        working-directory: canned_response_export
+        env:
+          GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
+          GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
+          GENESYS_REGION_DOMAIN: ${{ vars.GENESYS_REGION_DOMAIN }}
+          EXPORT_SCOPE: ${{ inputs.scope }}
+          COUNTRY_CODE: ${{ inputs.country_code }}
+        run: |
+          : "${GENESYS_CLIENT_ID:?Set the environment secret GENESYS_CLIENT_ID}"
+          : "${GENESYS_CLIENT_SECRET:?Set the environment secret GENESYS_CLIENT_SECRET}"
+          : "${GENESYS_REGION_DOMAIN:?Set the environment variable GENESYS_REGION_DOMAIN}"
+          if [[ "$EXPORT_SCOPE" == "country" ]]; then
+            : "${COUNTRY_CODE:?Provide a country code for a country export}"
+            python export_country_canned_responses.py "$COUNTRY_CODE"
+          else
+            python export_canned_responses.py
+          fi
+
+      - name: Upload exported CSV files
+        uses: actions/upload-artifact@v4
+        with:
+          name: canned-responses-${{ github.run_id }}-${{ github.run_attempt }}
+          path: canned_response_export/exports/*.csv
+          if-no-files-found: error
+          retention-days: 7
