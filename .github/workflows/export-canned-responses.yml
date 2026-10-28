@@ -41,9 +41,9 @@ jobs:
       - name: Export canned responses
         working-directory: canned_response_export
         env:
-          GENESYS_CLIENT_ID: ${{ secrets.GENESYS_CLIENT_ID }}
-          GENESYS_CLIENT_SECRET: ${{ secrets.GENESYS_CLIENT_SECRET }}
-          GENESYS_REGION_DOMAIN: ${{ vars.GENESYS_REGION_DOMAIN }}
+          GENESYS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          GENESYS_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          GENESYS_REGION_DOMAIN: ${{ secrets.GENESYS_REGION }}
           EXPORT_SCOPE: ${{ inputs.scope }}
           COUNTRY_CODE: ${{ inputs.country_code }}
         run: |
