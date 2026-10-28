@@ -10,13 +10,13 @@ Exports response-management responses to a timestamped CSV in `exports/`. The CS
 
 ## Configure and run
 
-From the `Dialog` folder, activate the existing virtual environment and set the credentials in your terminal session:
+From the `Dialog` folder, activate the existing virtual environment and set the credentials in your terminal session. The exporters use the same `CLIENT_ID`, `CLIENT_SECRET`, and `GENESYS_REGION` names as the other Genesys scripts. Existing `GENESYS_CLIENT_ID`, `GENESYS_CLIENT_SECRET`, and `GENESYS_REGION_DOMAIN` variables remain supported for compatibility.
 
 ```zsh
 source .venv/bin/activate
-export GENESYS_CLIENT_ID='your-client-id'
-export GENESYS_CLIENT_SECRET='your-client-secret'
-export GENESYS_REGION_DOMAIN='mypurecloud.de'
+export CLIENT_ID='your-client-id'
+export CLIENT_SECRET='your-client-secret'
+export GENESYS_REGION='mypurecloud.de'
 python canned_response_export/export_canned_responses.py
 ```
 
@@ -36,20 +36,19 @@ For every Genesys organization, create a GitHub Environment under **Settings > E
 
 | Setting | Kind | Value |
 | --- | --- | --- |
-| `GENESYS_CLIENT_ID` | Environment secret | OAuth client ID for this organization |
-| `GENESYS_CLIENT_SECRET` | Environment secret | OAuth client secret for this organization |
-| `GENESYS_REGION_DOMAIN` | Environment variable | Region domain, e.g. `mypurecloud.de`, `mypurecloud.com`, or `mypurecloud.com.au` |
+| `CLIENT_ID` | Environment secret | OAuth client ID for this organization |
+| `CLIENT_SECRET` | Environment secret | OAuth client secret for this organization |
 
-Use only the region domain, without `https://`, `api.`, `login.`, paths, or a trailing slash. It is the organization's Genesys region, not its organization name. Each OAuth client needs `responses:library:view` and `responses:response:view`, with access to the relevant divisions. Missing permissions can prevent exports or limit their coverage.
+Use the existing Genesys secret names `CLIENT_ID` and `CLIENT_SECRET` in each organization environment. At dispatch, enter the region domain without `https://`, `api.`, `login.`, paths, or a trailing slash (for example `mypurecloud.de`, `mypurecloud.com`, or `mypurecloud.com.au`). It is the organization's Genesys region, not its organization name. Each OAuth client needs `responses:library:view` and `responses:response:view`, with access to the relevant divisions. Missing permissions can prevent exports or limit their coverage.
 
 To run an export:
 
 1. Open **Actions > Export Genesys canned responses > Run workflow**.
-2. Select the organization environment.
+2. Select the organization environment and enter its Genesys region domain.
 3. Select `all` to run the full exporter, or `country` and supply a country code such as `SE`, `AT`, `AU`, or `NL`.
 4. After success, download the CSV from the run's **Artifacts** section. Artifacts expire after seven days and are not committed to the repository.
 
-The workflow uses Python 3.12 and the standard library, so no dependency installation is needed. It fails if credentials or the region variable are missing. A country export also fails if the country code is invalid or no matching libraries are found. Only successful exports are uploaded.
+The workflow uses Python 3.12 and the standard library, so no dependency installation is needed. It fails if credentials or the region domain are missing. A country export also fails if the country code is invalid or no matching libraries are found. Only successful exports are uploaded.
 
 Restrict repository and artifact access because responses can contain internal content. Consider environment approvals and deployment branch restrictions for production organizations. Anyone allowed to edit and run workflow code against an environment can potentially access its secrets; configure the repository and environment permissions accordingly.
 
