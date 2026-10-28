@@ -1,5 +1,5 @@
 name: Export Genesys canned responses
-run-name: Export canned responses (${{ inputs.organization }}, ${{ inputs.scope }}, ${{ inputs.country_code }})
+run-name: Export canned responses (${{ inputs.organization }}, ${{ inputs.region }}, ${{ inputs.scope }}, ${{ inputs.country_code }})
 
 on:
   workflow_dispatch:
@@ -8,6 +8,10 @@ on:
         description: GitHub Environment configured for the Genesys organization
         required: true
         type: environment
+      region:
+        description: Genesys Cloud region domain (e.g. mypurecloud.de)
+        required: true
+        type: string
       scope:
         description: Export all libraries or filter by country
         required: true
@@ -43,13 +47,13 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          GENESYS_REGION: ${{ secrets.GENESYS_REGION }}
+          GENESYS_REGION: ${{ inputs.region }}
           EXPORT_SCOPE: ${{ inputs.scope }}
           COUNTRY_CODE: ${{ inputs.country_code }}
         run: |
           : "${CLIENT_ID:?Set the environment secret CLIENT_ID}"
           : "${CLIENT_SECRET:?Set the environment secret CLIENT_SECRET}"
-          : "${GENESYS_REGION:?Set the environment variable GENESYS_REGION}"
+          : "${GENESYS_REGION:?Provide the Genesys Cloud region domain}"
           if [[ "$EXPORT_SCOPE" == "country" ]]; then
             : "${COUNTRY_CODE:?Provide a country code for a country export}"
             python export_country_canned_responses.py "$COUNTRY_CODE"
