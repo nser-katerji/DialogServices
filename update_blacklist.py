@@ -64,20 +64,21 @@ def check_slack_scopes(client: WebClient):
         auth_test = client.auth_test()
         if not auth_test['ok']:
             raise ValueError("Failed to authenticate with Slack")
-            
-        # Get the bot's scopes
-        scopes = auth_test.get('bot_scopes', [])
+
+        # Scopes are returned in the x-oauth-scopes response header, not the body
+        scopes_header = auth_test.headers.get('x-oauth-scopes', '')
+        scopes = [s.strip() for s in scopes_header.split(',') if s.strip()]
         required_scopes = {'channels:history'}
-        
+
         missing_scopes = required_scopes - set(scopes)
         if missing_scopes:
             raise ValueError(
                 f"Bot needs the following scopes: {', '.join(missing_scopes)}. "
                 "Please add these scopes in your Slack App settings and reinstall the app."
             )
-            
+
         logger.info(f"Successfully verified Slack authentication as {auth_test['user']}")
-            
+
     except SlackApiError as e:
         error_data = getattr(e.response, 'data', {})
         raise ValueError(f"Error verifying Slack authentication: {error_data.get('error', str(e))}")
@@ -175,8 +176,8 @@ def get_genesys_data_table_rows(api_instance: PureCloudPlatformClientV2.Architec
                 break
                 
             for row in rows.entities:
-                if 'EmailAddress' in row.properties:
-                    email = validate_and_normalize_email(row.properties['EmailAddress'])
+                if 'EmailAddress' in row:
+                    email = validate_and_normalize_email(row['EmailAddress'])
                     if email:
                         existing_emails.add(email)
             
@@ -210,9 +211,8 @@ def add_genesys_data_table_row(
             logger.warning(f"Invalid email address, skipping")
             return False
 
-        # Create a new row object
-        new_row = PureCloudPlatformClientV2.ArchitectDatatableRow()
-        new_row.properties = {
+        # Create a new row as a plain dict (required by the Genesys API)
+        new_row = {
             "EmailAddress": email_address,
             "DateAdded": datetime.datetime.utcnow().isoformat()
         }

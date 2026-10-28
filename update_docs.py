@@ -273,7 +273,7 @@ Keep it professional, clear, and developer-friendly.
                 f.write(f"- [{file_stem}](./{file_stem}.md) - `{file_path}`\n")
             
             f.write(f"\n\n## 🔄 Last Updated\n\n")
-            f.write(f"Generated on: {os.environ.get('GITHUB_SHA', 'local')}[:7]\n")
+            f.write(f"Generated on: {os.environ.get('GITHUB_SHA', 'local')[:7]}\n")
             f.write("Powered by GitHub Copilot 🤖\n")
 
 def main():
