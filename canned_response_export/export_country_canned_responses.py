@@ -399,8 +399,8 @@ def main():
         print(f"Unknown country code: {country_code}", file=sys.stderr)
         return 2
 
-    client_id = os.environ.get("GENESYS_CLIENT_ID")
-    client_secret = os.environ.get("GENESYS_CLIENT_SECRET")
+    client_id = os.environ.get("CLIENT_ID")
+    client_secret = os.environ.get("CLIENT_SECRET")
     if not client_id or not client_secret:
         print(
             "Set GENESYS_CLIENT_ID and GENESYS_CLIENT_SECRET before running this script.",
