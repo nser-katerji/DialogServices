@@ -13,7 +13,11 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-REGION_DOMAIN = os.environ.get("GENESYS_REGION_DOMAIN", "mypurecloud.de").strip()
+REGION_DOMAIN = (
+    os.environ.get("GENESYS_REGION")
+    or os.environ.get("GENESYS_REGION_DOMAIN")
+    or "mypurecloud.de"
+).strip()
 API_BASE = f"https://api.{REGION_DOMAIN}"
 TOKEN_URL = f"https://login.{REGION_DOMAIN}/oauth/token"
 PAGE_SIZE = 100
@@ -135,11 +139,11 @@ def write_csv(responses_by_id):
 
 
 def main():
-    client_id = os.environ.get("GENESYS_CLIENT_ID")
-    client_secret = os.environ.get("GENESYS_CLIENT_SECRET")
+    client_id = os.environ.get("CLIENT_ID") or os.environ.get("GENESYS_CLIENT_ID")
+    client_secret = os.environ.get("CLIENT_SECRET") or os.environ.get("GENESYS_CLIENT_SECRET")
     if not client_id or not client_secret:
         print(
-            "Set GENESYS_CLIENT_ID and GENESYS_CLIENT_SECRET before running this script.",
+            "Set CLIENT_ID and CLIENT_SECRET before running this script.",
             file=sys.stderr,
         )
         return 2
