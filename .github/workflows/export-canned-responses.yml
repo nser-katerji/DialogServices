@@ -1,13 +1,9 @@
 name: Export Genesys canned responses
-run-name: Export canned responses (${{ inputs.organization }}, ${{ inputs.region }}, ${{ inputs.scope }}, ${{ inputs.country_code }})
+run-name: Export canned responses (${{ inputs.region }}, ${{ inputs.scope }}, ${{ inputs.country_code }})
 
 on:
   workflow_dispatch:
     inputs:
-      organization:
-        description: GitHub Environment configured for the Genesys organization
-        required: true
-        type: environment
       region:
         description: Genesys Cloud region domain (e.g. mypurecloud.de)
         required: true
@@ -32,7 +28,6 @@ jobs:
   export:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.organization }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -51,8 +46,8 @@ jobs:
           EXPORT_SCOPE: ${{ inputs.scope }}
           COUNTRY_CODE: ${{ inputs.country_code }}
         run: |
-          : "${CLIENT_ID:?Set the environment secret CLIENT_ID}"
-          : "${CLIENT_SECRET:?Set the environment secret CLIENT_SECRET}"
+          : "${CLIENT_ID:?Set the repository secret CLIENT_ID}"
+          : "${CLIENT_SECRET:?Set the repository secret CLIENT_SECRET}"
           : "${GENESYS_REGION:?Provide the Genesys Cloud region domain}"
           if [[ "$EXPORT_SCOPE" == "country" ]]; then
             : "${COUNTRY_CODE:?Provide a country code for a country export}"
