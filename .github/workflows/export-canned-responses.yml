@@ -41,15 +41,15 @@ jobs:
       - name: Export canned responses
         working-directory: canned_response_export
         env:
-          GENESYS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          GENESYS_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          GENESYS_REGION_DOMAIN: ${{ secrets.GENESYS_REGION }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          GENESYS_REGION: ${{ secrets.GENESYS_REGION }}
           EXPORT_SCOPE: ${{ inputs.scope }}
           COUNTRY_CODE: ${{ inputs.country_code }}
         run: |
-          : "${GENESYS_CLIENT_ID:?Set the environment secret GENESYS_CLIENT_ID}"
-          : "${GENESYS_CLIENT_SECRET:?Set the environment secret GENESYS_CLIENT_SECRET}"
-          : "${GENESYS_REGION_DOMAIN:?Set the environment variable GENESYS_REGION_DOMAIN}"
+          : "${CLIENT_ID:?Set the environment secret CLIENT_ID}"
+          : "${CLIENT_SECRET:?Set the environment secret CLIENT_SECRET}"
+          : "${GENESYS_REGION:?Set the environment variable GENESYS_REGION}"
           if [[ "$EXPORT_SCOPE" == "country" ]]; then
             : "${COUNTRY_CODE:?Provide a country code for a country export}"
             python export_country_canned_responses.py "$COUNTRY_CODE"
